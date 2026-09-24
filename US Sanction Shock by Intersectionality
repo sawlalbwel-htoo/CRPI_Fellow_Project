@@ -1,0 +1,550 @@
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# Set workign directory 
+setwd("C:/Users/")
+
+# Load data
+df_mds <- read_excel("MDS_Dataset.xlsx", sheet = "Dataset")
+
+# Clean column names (strip whitespace)
+names(df_mds) <- trimws(names(df_mds))
+
+# 2. Process data
+df_mds$Date <- as.Date(df_mds$Date)
+df_mds$Food_Insecurity_Yes <- case_when(
+  df_mds$`Food Insecurity` == 1 ~ 1,
+  df_mds$`Food Insecurity` == 2 ~ 0,
+  TRUE ~ NA_real_
+)
+
+# Filter valid rows
+df_clean <- df_mds %>% 
+  filter(!is.na(Date), !is.na(Food_Insecurity_Yes))
+
+###Household reporting Food Insecurity 
+
+# Table 1: Summary Statistics by Gender
+summary_by_gender <- df_clean %>%
+  mutate(Gender_Label = factor(Gender, levels = c(1, 2), labels = c("Male", "Female"))) %>%
+  group_by(Gender_Label) %>%
+  summarize(
+    Observation_Count = n(),
+    Mean = mean(Food_Insecurity_Yes, na.rm = TRUE),
+    Std_Dev = sd(Food_Insecurity_Yes, na.rm = TRUE),
+    Min = min(Food_Insecurity_Yes, na.rm = TRUE),
+    Max = max(Food_Insecurity_Yes, na.rm = TRUE)
+  )
+
+print("=== Summary Statistics by Gender ===")
+print(summary_by_gender)
+
+
+# Table 2: Summary Statistics by Sanction Period (Pre vs Post Feb 2023)
+summary_by_period <- df_clean %>%
+  mutate(Period = if_else(Date >= as.Date("2023-02-01"), "Post-Sanction (Feb 2023+)", "Pre-Sanction")) %>%
+  group_by(Period) %>%
+  summarize(
+    Observation_Count = n(),
+    Mean = mean(Food_Insecurity_Yes, na.rm = TRUE),
+    Std_Dev = sd(Food_Insecurity_Yes, na.rm = TRUE),
+    Min = min(Food_Insecurity_Yes, na.rm = TRUE),
+    Max = max(Food_Insecurity_Yes, na.rm = TRUE)
+  )
+
+print("=== Summary Statistics by Sanction Period ===")
+print(summary_by_period)
+
+# Calculate monthly mean
+monthly <- df_clean %>%
+  mutate(Month_Year = floor_date(Date, "month")) %>%
+  group_by(Month_Year) %>%
+  summarize(mean = mean(Food_Insecurity_Yes), count = n())
+
+# Calculate overall mean
+avg_mean <- mean(df_clean$Food_Insecurity_Yes)
+
+# 3. Plotting
+ggplot(monthly, aes(x = Month_Year, y = mean)) +
+  geom_line(color = "#0052cc", linewidth = 1) +
+  geom_point(color = "#0052cc", size = 2) +
+  geom_hline(yintercept = avg_mean, color = "green", linetype = "solid", linewidth = 1) +
+  geom_vline(xintercept = as.Date("2023-02-01"), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Proportion of Households Reporting Severe Food Insecurity over Time",
+    subtitle = paste0("Overall Average: ", round(avg_mean, 3)),
+    x = "Date",
+    y = "Proportion (Yes = 1)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+##------------------------------------------------------------
+
+# Table 1: Summary Statistics by Gender
+
+summary_by_gender <- df_clean %>%
+  mutate(Gender_Label = factor(Gender, levels = c(1, 2), labels = c("Male", "Female"))) %>%
+  group_by(Gender_Label) %>%
+  summarize(
+    Observation_Count = n(),
+    Mean = mean(Food_Insecurity_Yes, na.rm = TRUE),
+    Std_Dev = sd(Food_Insecurity_Yes, na.rm = TRUE),
+    Min = min(Food_Insecurity_Yes, na.rm = TRUE),
+    Max = max(Food_Insecurity_Yes, na.rm = TRUE)
+  )
+
+print("=== Summary Statistics by Gender ===")
+print(summary_by_gender)
+
+
+# Table 2: Summary Statistics by Sanction Period (Pre vs Post Feb 2023)
+summary_by_period <- df_clean %>%
+  mutate(Period = if_else(Date >= as.Date("2023-02-01"), "Post-Sanction (Feb 2023+)", "Pre-Sanction")) %>%
+  group_by(Period) %>%
+  summarize(
+    Observation_Count = n(),
+    Mean = mean(Food_Insecurity_Yes, na.rm = TRUE),
+    Std_Dev = sd(Food_Insecurity_Yes, na.rm = TRUE),
+    Min = min(Food_Insecurity_Yes, na.rm = TRUE),
+    Max = max(Food_Insecurity_Yes, na.rm = TRUE)
+  )
+
+print("=== Summary Statistics by Sanction Period ===")
+print(summary_by_period)
+
+#---------------------------------------------------------------------  
+
+### Food Insecurity by Gender 
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# 1. Load data
+df_mds <- read_excel("MDS_Dataset.xlsx", sheet = "Dataset")
+names(df_mds) <- trimws(names(df_mds))
+
+# 2. Process data for Food Insecurity
+df_mds$Date <- as.Date(df_mds$Date)
+df_mds$Food_Insecurity_Yes <- case_when(
+  df_mds$`Food Insecurity` == 1 ~ 1,
+  df_mds$`Food Insecurity` == 2 ~ 0,
+  TRUE ~ NA_real_
+)
+
+df_clean <- df_mds %>% 
+  filter(!is.na(Date), !is.na(Food_Insecurity_Yes)) %>%
+  mutate(
+    Gender_Label = factor(Gender, levels = c(1, 2), labels = c("Male", "Female")),
+    Period_Feb2023 = if_else(Date >= as.Date("2023-02-01"), "Post-Feb 2023", "Pre-Feb 2023")
+  )
+
+# 3. Calculate monthly means by gender and period
+monthly_means_by_gender <- df_clean %>%
+  mutate(Month_Year = floor_date(Date, "month")) %>%
+  group_by(Month_Year, Gender_Label, Period_Feb2023) %>%
+  summarize(
+    Monthly_Mean = mean(Food_Insecurity_Yes, na.rm = TRUE),
+    Observation_Count = n(),
+    .groups = "drop"
+  )
+
+# 4. Calculate average means (reference lines) for each gender & period
+avg_means_by_gender <- df_clean %>%
+  group_by(Gender_Label, Period_Feb2023) %>%
+  summarize(
+    Average_Mean = mean(Food_Insecurity_Yes, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Merge average mean back into monthly data
+mn_avgmn_by_gender <- monthly_means_by_gender %>%
+  left_join(avg_means_by_gender, by = c("Gender_Label", "Period_Feb2023"))
+
+# 5. Refined ggplot visualization for Food Insecurity
+ggplot(mn_avgmn_by_gender, aes(x = Month_Year, y = Monthly_Mean)) +
+  geom_line(color = "#0052cc", linewidth = 1) +
+  geom_point(color = "#0052cc", size = 2) +
+  # Horizontal dashed line representing the average mean for each subgroup/period
+  geom_hline(aes(yintercept = Average_Mean), color = "green", linetype = "dashed", linewidth = 1) +
+  # Facet grid separating Gender (rows) and Period (columns)
+  facet_grid(Gender_Label ~ Period_Feb2023, scales = "free_x") +
+  labs(
+    title = "Proportion of Food Insecurity Reporting by Gender",
+    subtitle = "Green dashed lines = Subgroup Average Mean",
+    x = "Month",
+    y = "Proportion of Food Insecurity (Yes = 1)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold", size = 11)
+  )
+
+########-------------------------------------------########
+
+### Health Shock 
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# 1. Load data
+df_mds <- read_excel("MDS_Dataset.xlsx", sheet = "Dataset")
+names(df_mds) <- trimws(names(df_mds))
+
+# 2. Process data for Health Shock / Access to Medical Services
+# Metadata scale for Health Shock:
+# 1 = yes, any time I wanted to use medical services
+# 2 = most of the time
+# 3 = only a few times
+# 4 = no, never in the last 4 weeks
+df_mds$Date <- as.Date(df_mds$Date)
+df_mds$Health_Shock_Limited <- case_when(
+  df_mds$`Health Shock` %in% c(3, 4) ~ 1,  # Limited/constrained access
+  df_mds$`Health Shock` %in% c(1, 2) ~ 0,  # Good/frequent access
+  TRUE ~ NA_real_
+)
+
+# Filter valid rows
+df_clean <- df_mds %>% 
+  filter(!is.na(Date), !is.na(Health_Shock_Limited))
+
+### Household reporting Limited Medical Access / Health Shock
+
+# Table 1: Summary Statistics by Gender
+summary_by_gender <- df_clean %>%
+  mutate(Gender_Label = factor(Gender, levels = c(1, 2), labels = c("Male", "Female"))) %>%
+  group_by(Gender_Label) %>%
+  summarize(
+    Observation_Count = n(),
+    Mean = mean(Health_Shock_Limited, na.rm = TRUE),
+    Std_Dev = sd(Health_Shock_Limited, na.rm = TRUE),
+    Min = min(Health_Shock_Limited, na.rm = TRUE),
+    Max = max(Health_Shock_Limited, na.rm = TRUE)
+  )
+
+print("=== Summary Statistics by Gender (Health Shock) ===")
+print(summary_by_gender)
+
+
+# Table 2: Summary Statistics by Sanction Period (Pre vs Post Feb 2023)
+summary_by_period <- df_clean %>%
+  mutate(Period = if_else(Date >= as.Date("2023-02-01"), "Post-Sanction (Feb 2023+)", "Pre-Sanction")) %>%
+  group_by(Period) %>%
+  summarize(
+    Observation_Count = n(),
+    Mean = mean(Health_Shock_Limited, na.rm = TRUE),
+    Std_Dev = sd(Health_Shock_Limited, na.rm = TRUE),
+    Min = min(Health_Shock_Limited, na.rm = TRUE),
+    Max = max(Health_Shock_Limited, na.rm = TRUE)
+  )
+
+print("=== Summary Statistics by Sanction Period (Health Shock) ===")
+print(summary_by_period)
+
+
+# Calculate monthly mean
+monthly <- df_clean %>%
+  mutate(Month_Year = floor_date(Date, "month")) %>%
+  group_by(Month_Year) %>%
+  summarize(mean = mean(Health_Shock_Limited), count = n())
+
+# Calculate overall mean
+avg_mean <- mean(df_clean$Health_Shock_Limited)
+
+
+# 3. Plotting
+ggplot(monthly, aes(x = Month_Year, y = mean)) +
+  geom_line(color = "#d9534f", linewidth = 1) +
+  geom_point(color = "#d9534f", size = 2) +
+  geom_hline(yintercept = avg_mean, color = "green", linetype = "solid", linewidth = 1) +
+  geom_vline(xintercept = as.Date("2023-02-01"), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Proportion of Households Reporting Limited Medical Access / Health Shock over Time",
+    subtitle = paste0("Overall Average: ", round(avg_mean, 3)),
+    x = "Date",
+    y = "Proportion (Limited Access = 1)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#---------------------------------------------------
+
+### Health Shock by Gender 
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# 1. Load data
+df_mds <- read_excel("MDS_Dataset.xlsx", sheet = "Dataset")
+names(df_mds) <- trimws(names(df_mds))
+
+# 2. Process data for Health Shock / Access to Medical Services
+# Metadata scale for Health Shock:
+# 1 = yes, any time I wanted to use medical services
+# 2 = most of the time
+# 3 = only a few times
+# 4 = no, never in the last 4 weeks
+df_mds$Date <- as.Date(df_mds$Date)
+df_mds$Health_Shock_Limited <- case_when(
+  df_mds$`Health Shock` %in% c(3, 4) ~ 1,
+  df_mds$`Health Shock` %in% c(1, 2) ~ 0,
+  TRUE ~ NA_real_
+)
+
+df_clean <- df_mds %>% 
+  filter(!is.na(Date), !is.na(Health_Shock_Limited)) %>%
+  mutate(
+    Gender_Label = factor(Gender, levels = c(1, 2), labels = c("Male", "Female")),
+    Period_Feb2023 = if_else(Date >= as.Date("2023-02-01"), "Post-Feb 2023", "Pre-Feb 2023")
+  )
+
+# 3. Calculate monthly means by gender and period
+monthly_means_by_gender <- df_clean %>%
+  mutate(Month_Year = floor_date(Date, "month")) %>%
+  group_by(Month_Year, Gender_Label, Period_Feb2023) %>%
+  summarize(
+    Monthly_Mean = mean(Health_Shock_Limited, na.rm = TRUE),
+    Observation_Count = n(),
+    .groups = "drop"
+  )
+
+print("=== Monthly Means by Gender and Period (All Rows) ===")
+print(monthly_means_by_gender, n = Inf)
+
+
+# 4. Calculate average means (reference lines) for each gender & period
+avg_means_by_gender <- df_clean %>%
+  group_by(Gender_Label, Period_Feb2023) %>%
+  summarize(
+    Average_Mean = mean(Health_Shock_Limited, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print("=== Average Means by Gender & Period ===")
+print(avg_means_by_gender)
+
+
+# Merge average mean back into monthly data
+mn_avgmn_by_gender <- monthly_means_by_gender %>%
+  left_join(avg_means_by_gender, by = c("Gender_Label", "Period_Feb2023"))
+
+print("=== Mean and Average Mean of Health Shock by Gender (All Rows) ===")
+print(mn_avgmn_by_gender, n = Inf)
+
+
+# 5. ggplot visualization with faceting by Gender and Period
+ggplot(mn_avgmn_by_gender, aes(x = Month_Year, y = Monthly_Mean)) +
+  geom_line(color = "#d9534f", linewidth = 1) +
+  geom_point(color = "#d9534f", size = 2) +
+  # Horizontal dashed line representing the average mean for each subgroup/period
+  geom_hline(aes(yintercept = Average_Mean), color = "green", linetype = "dashed", linewidth = 1) +
+  # Facet grid separating Gender (rows) and Period (columns)
+  facet_grid(Gender_Label ~ Period_Feb2023, scales = "free_x") +
+  labs(
+    title = "Limited Medical Access / Health Shock Reporting by Gender",
+    subtitle = "Green dashed lines = Subgroup Average Mean",
+    x = "Month",
+    y = "Proportion of Limited Medical Access (Yes = 1)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold", size = 11)
+  )
+
+#------------------------------------------------------------------------
+
+
+#### Economic Shock 
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# 1. Load data
+df_mds <- read_excel("MDS_Dataset.xlsx", sheet = "Dataset")
+names(df_mds) <- trimws(names(df_mds))
+
+# 2. Process data for Economic Shocks (J15_00 to J15_07)
+df_mds$Date <- as.Date(df_mds$Date)
+
+df_clean <- df_mds %>%
+  # FIX: Coerce all J15 columns to numeric first to prevent type-matching errors
+  mutate(across(starts_with("J15_"), as.numeric)) %>%
+  # Replace 9997 with NA across all J15 columns
+  mutate(across(starts_with("J15_"), ~ na_if(., 9997))) %>%
+  # Calculate row-wise aggregate (How many shocks out of 8 did they face?)
+  rowwise() %>%
+  mutate(
+    Economic_Shock_Count = if_else(
+      all(is.na(c_across(starts_with("J15_")))), 
+      NA_real_, 
+      sum(c_across(starts_with("J15_")), na.rm = TRUE)
+    )
+  ) %>%
+  ungroup() %>%
+  # Filter valid rows
+  filter(!is.na(Date), !is.na(Economic_Shock_Count))
+
+### Household reporting Economic Shocks (Count Index)
+
+# Table 1: Summary Statistics by Gender
+summary_by_gender <- df_clean %>%
+  mutate(Gender_Label = factor(Gender, levels = c(1, 2), labels = c("Male", "Female"))) %>%
+  group_by(Gender_Label) %>%
+  summarize(
+    Observation_Count = n(),
+    Mean_Shocks = mean(Economic_Shock_Count, na.rm = TRUE),
+    Std_Dev = sd(Economic_Shock_Count, na.rm = TRUE),
+    Min = min(Economic_Shock_Count, na.rm = TRUE),
+    Max = max(Economic_Shock_Count, na.rm = TRUE)
+  )
+
+print("=== Summary Statistics by Gender (Economic Shock Count) ===")
+print(summary_by_gender)
+
+
+# Table 2: Summary Statistics by Sanction Period (Pre vs Post Feb 2023)
+summary_by_period <- df_clean %>%
+  mutate(Period = if_else(Date >= as.Date("2023-02-01"), "Post-Sanction (Feb 2023+)", "Pre-Sanction")) %>%
+  group_by(Period) %>%
+  summarize(
+    Observation_Count = n(),
+    Mean_Shocks = mean(Economic_Shock_Count, na.rm = TRUE),
+    Std_Dev = sd(Economic_Shock_Count, na.rm = TRUE),
+    Min = min(Economic_Shock_Count, na.rm = TRUE),
+    Max = max(Economic_Shock_Count, na.rm = TRUE)
+  )
+
+print("=== Summary Statistics by Sanction Period (Economic Shock Count) ===")
+print(summary_by_period)
+
+
+# Calculate monthly mean
+monthly <- df_clean %>%
+  mutate(Month_Year = floor_date(Date, "month")) %>%
+  group_by(Month_Year) %>%
+  summarize(mean = mean(Economic_Shock_Count), count = n())
+
+# Calculate overall mean
+avg_mean <- mean(df_clean$Economic_Shock_Count)
+
+
+# 3. Plotting
+ggplot(monthly, aes(x = Month_Year, y = mean)) +
+  geom_line(color = "#e67e22", linewidth = 1) +
+  geom_point(color = "#e67e22", size = 2) +
+  geom_hline(yintercept = avg_mean, color = "green", linetype = "solid", linewidth = 1) +
+  geom_vline(xintercept = as.Date("2023-02-01"), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Average Number of Economic Shocks Reported over Time",
+    subtitle = paste0("Overall Average: ", round(avg_mean, 2), " concurrent shocks"),
+    x = "Date",
+    y = "Average Number of Shocks (Scale: 1-8)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#-------------------------------------------------------------------------
+
+### Economics shock by Gender 
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# 1. Load data
+df_mds <- read_excel("MDS_Dataset.xlsx", sheet = "Dataset")
+names(df_mds) <- trimws(names(df_mds))
+
+# 2. Process data for Economic Shocks (J15_00 to J15_07)
+df_mds$Date <- as.Date(df_mds$Date)
+
+df_clean <- df_mds %>%
+  # Coerce all J15 columns to numeric first to prevent type-matching errors
+  mutate(across(starts_with("J15_"), as.numeric)) %>%
+  # Replace 9997 ("prefer not to answer") with NA across all J15 columns
+  mutate(across(starts_with("J15_"), ~ na_if(., 9997))) %>%
+  # Calculate row-wise aggregate (How many shocks out of 8 did they face?)
+  rowwise() %>%
+  mutate(
+    Economic_Shock_Count = if_else(
+      all(is.na(c_across(starts_with("J15_")))), 
+      NA_real_, 
+      sum(c_across(starts_with("J15_")), na.rm = TRUE)
+    )
+  ) %>%
+  ungroup() %>%
+  # Filter valid rows and add Gender/Period labels
+  filter(!is.na(Date), !is.na(Economic_Shock_Count)) %>%
+  mutate(
+    Gender_Label = factor(Gender, levels = c(1, 2), labels = c("Male", "Female")),
+    Period_Feb2023 = if_else(Date >= as.Date("2023-02-01"), "Post-Feb 2023", "Pre-Feb 2023")
+  )
+
+# 3. Calculate monthly means by gender and period
+monthly_means_by_gender <- df_clean %>%
+  mutate(Month_Year = floor_date(Date, "month")) %>%
+  group_by(Month_Year, Gender_Label, Period_Feb2023) %>%
+  summarize(
+    Monthly_Mean = mean(Economic_Shock_Count, na.rm = TRUE),
+    Observation_Count = n(),
+    .groups = "drop"
+  )
+
+print("=== Monthly Means by Gender and Period (All Rows) ===")
+print(monthly_means_by_gender, n = Inf)
+
+
+# 4. Calculate average means (reference lines) for each gender & period
+avg_means_by_gender <- df_clean %>%
+  group_by(Gender_Label, Period_Feb2023) %>%
+  summarize(
+    Average_Mean = mean(Economic_Shock_Count, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print("=== Average Means by Gender & Period ===")
+print(avg_means_by_gender)
+
+
+# Merge average mean back into monthly data
+mn_avgmn_by_gender <- monthly_means_by_gender %>%
+  left_join(avg_means_by_gender, by = c("Gender_Label", "Period_Feb2023"))
+
+print("=== Mean and Average Mean of Economic Shocks by Gender (All Rows) ===")
+print(mn_avgmn_by_gender, n = Inf)
+
+
+# 5. ggplot visualization with faceting by Gender and Period
+ggplot(mn_avgmn_by_gender, aes(x = Month_Year, y = Monthly_Mean)) +
+  # Using orange (#e67e22) to distinguish Economic Shocks
+  geom_line(color = "#e67e22", linewidth = 1) +
+  geom_point(color = "#e67e22", size = 2) +
+  # Horizontal dashed line representing the average mean for each subgroup/period
+  geom_hline(aes(yintercept = Average_Mean), color = "green", linetype = "dashed", linewidth = 1) +
+  # Facet grid separating Gender (rows) and Period (columns)
+  facet_grid(Gender_Label ~ Period_Feb2023, scales = "free_x") +
+  labs(
+    title = "Average Number of Economic Shocks Reported by Gender",
+    subtitle = "Green dashed lines = Subgroup Average Mean",
+    x = "Month",
+    y = "Average Number of Shocks (Scale: 1-8)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold", size = 11)
+  )
+
